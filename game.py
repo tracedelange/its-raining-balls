@@ -1,6 +1,8 @@
 import pygame
 import random
 
+from nn import get_input_array
+
 # Initialize Pygame
 pygame.init()
 
@@ -43,11 +45,28 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
+
+
+
     keys = pygame.key.get_pressed()
     if keys[pygame.K_LEFT] and player.left > 0:
         player.x -= PLAYER_SPEED
     if keys[pygame.K_RIGHT] and player.right < WIDTH:
         player.x += PLAYER_SPEED
+
+
+    # Wrap the player's position if it goes off the screen, considering the player's size
+    if player.x == 0:
+        player.left = WIDTH - PLAYER_SIZE  # Wrap to the right side
+    elif player.x > WIDTH - PLAYER_SIZE-1:
+        player.left = 0  # Wrap to the left side
+
+    print('Player position:', player.x)
+
+    # Get input array
+    ia = get_input_array([(ball[0].x, ball[0].y) for ball in balls])
+
+    
 
     # Generate balls with random colors
     if random.randint(1, 100) < 5:
