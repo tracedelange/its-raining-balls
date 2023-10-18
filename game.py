@@ -1,7 +1,13 @@
 import pygame
 import random
 
+import torch
+
+from brain import Brain
 from nn import get_input_array
+
+# torch.manual_seed(42)
+# random.seed(42)
 
 # Initialize Pygame
 pygame.init()
@@ -37,6 +43,7 @@ score = 0
 
 font = pygame.font.Font(None, 36)  # You can specify the font and font size (None means a default font).
 
+brain = Brain()
 
 # Game loop
 running = True
@@ -46,13 +53,11 @@ while running:
             running = False
 
 
-
-
-    keys = pygame.key.get_pressed()
-    if keys[pygame.K_LEFT] and player.left > 0:
-        player.x -= PLAYER_SPEED
-    if keys[pygame.K_RIGHT] and player.right < WIDTH:
-        player.x += PLAYER_SPEED
+    # keys = pygame.key.get_pressed()
+    # if keys[pygame.K_LEFT] and player.left > 0:
+    #     player.x -= PLAYER_SPEED
+    # if keys[pygame.K_RIGHT] and player.right < WIDTH:
+    #     player.x += PLAYER_SPEED
 
 
     # Wrap the player's position if it goes off the screen, considering the player's size
@@ -66,6 +71,21 @@ while running:
     # Get input array
     ia = get_input_array([(ball[0].x, ball[0].y) for ball in balls])
 
+    input_tensor = torch.tensor(ia, dtype=torch.float32)
+
+    # Pass the input tensor through the model
+    action = brain(input_tensor)
+
+    print('Action:', action)
+
+    highest_index = torch.argmax(action).item()
+
+    print("Index of the highest value:", highest_index)
+
+    if highest_index == 0:
+        player.left -= PLAYER_SPEED
+    elif highest_index == 2:
+        player.left += PLAYER_SPEED
     
 
     # Generate balls with random colors
