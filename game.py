@@ -11,7 +11,7 @@ from config import Config
 con = Config()
 
 
-def loop_game(mode):
+def loop_game(model=None):
 
     # Initialize Pygame
     pygame.init()
@@ -36,18 +36,36 @@ def loop_game(mode):
 
     # Game loop
     running = True
+    score = 0
     while running:
-        score = 0
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
 
-        # keys = pygame.key.get_pressed()
-        # if keys[pygame.K_LEFT] and player.left > 0:
-        #     player.x -= PLAYER_SPEED
-        # if keys[pygame.K_RIGHT] and player.right < WIDTH:
-        #     player.x += PLAYER_SPEED
+        if model is None:
+
+
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_LEFT] and player.left > 0:
+                player.x -= con.PLAYER_SPEED
+            if keys[pygame.K_RIGHT] and player.right < con.WIDTH:
+                player.x += con.PLAYER_SPEED  
+        else:
+            # Get input array
+            ia = get_input_array([(ball[0].x, ball[0].y) for ball in balls])
+
+            input_tensor = torch.tensor(ia, dtype=torch.float32)
+
+            # Pass the input tensor through the model
+            action = brain(input_tensor)
+
+            highest_index = torch.argmax(action).item()
+
+            if highest_index == 0:
+                player.left -= con.PLAYER_SPEED
+            elif highest_index == 2:
+                player.left += con.PLAYER_SPEED
 
 
         # Wrap the player's position if it goes off the screen, considering the player's size
@@ -55,21 +73,6 @@ def loop_game(mode):
             player.left = con.WIDTH - con.PLAYER_SIZE  # Wrap to the right side
         elif player.x > con.WIDTH - con.PLAYER_SIZE-1:
             player.left = 0  # Wrap to the left side
-
-        # Get input array
-        ia = get_input_array([(ball[0].x, ball[0].y) for ball in balls])
-
-        input_tensor = torch.tensor(ia, dtype=torch.float32)
-
-        # Pass the input tensor through the model
-        action = brain(input_tensor)
-
-        highest_index = torch.argmax(action).item()
-
-        if highest_index == 0:
-            player.left -= con.PLAYER_SPEED
-        elif highest_index == 2:
-            player.left += con.PLAYER_SPEED
         
         # Generate balls with random colors
         if random.randint(1, 100) < 5:

@@ -81,10 +81,8 @@ def evaluate_network(mode):
         score += 1
         con.BALL_SPEED += score * con.BALL_SPEED_SCALE
 
-        print(player)
-
-        if score > 1000:
-            pdb.set_trace()
+        if score > 300:
+            torch.save(brain.state_dict(), './models/output.txt')
 
     # Game over
     print("Game Over! Your Score:", score)
