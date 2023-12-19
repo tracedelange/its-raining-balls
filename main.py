@@ -1,12 +1,12 @@
 from game import loop_game
-from nn import evaluate_network
 import argparse
 from brain import Brain
 import torch
+import pdb
 
 def main():
     parser = argparse.ArgumentParser(description='Evaluate a PyTorch model.')
-    parser.add_argument('--model', required=True, help='Path to the PyTorch model file')
+    parser.add_argument('--model', required=False, help='Path to the PyTorch model file')
 
     args = parser.parse_args()
 
@@ -15,11 +15,12 @@ def main():
     if args.model:
         model = Brain()
         #load torch model located at path
-        model = model.load_state_dict(torch.load(args.model))
+        if args.model != "new":
+            model.load_state_dict(torch.load(args.model), strict=True)
     else:
         model = None    
 
-    loop_game(model)
+    loop_game(model, virtual=False, random_seed=0)
 
 
 
