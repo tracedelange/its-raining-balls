@@ -127,7 +127,8 @@ def generate_training_graph(output):
     plt.xlabel('Generation')
     plt.ylabel('Score')
     plt.title('Training Progress')
-    plt.savefig('./training_graph.png')
+    # // TODO: Ensure path exists
+    plt.savefig('./figures/training_graph.png')
 
 
 def train():
