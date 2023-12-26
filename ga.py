@@ -16,8 +16,8 @@ con = Config()
 def mutate(agent, mutation_rate, mutation_strength):
     new_agent = deepcopy(agent)  # Create a copy of the winning agent
     for layer in new_agent.children():
-        for param in layer.parameters():
-            if torch.rand(()) < mutation_rate:
+        if torch.rand(()) < mutation_rate:
+            for param in layer.parameters():
                 param.data += torch.randn(param.shape) * mutation_strength
     return new_agent
 
@@ -39,20 +39,25 @@ def initialize_population(population_size):
     return population
 
 
-def evaluate_fitness(population, gen=0, random_seed=0):
+def evaluate_fitness(population, gen=0):
     fitness_scores = []
     best_score = 0
     best_agent = None
+    best_agent_seed = None
     # for agent in population:
     for i in range(len(population)):
-        # score = evaluate_network(agent)
+        if con.same_seed:
+            random_seed = 0
+        else:
+            random_seed = random.randint(0, 1000000000000000)
         score = loop_game(population[i], gen, i,
                           virtual=True, random_seed=random_seed)
         fitness_scores.append(score)
         if score > best_score:
             best_score = score
             best_agent = population[i]
-    return fitness_scores, best_score, best_agent
+            best_agent_seed = random_seed
+    return fitness_scores, best_score, best_agent, best_agent_seed
 
 
 def select_parents(population, fitness_scores):
@@ -84,11 +89,11 @@ def crossover_and_mutate(parents):
     return offspring
 
 
-def apply_elitism(offspring, population):
+def apply_elitism(offspring, population, fitness_scores):
     if con.elitism:
         # Select the best individuals from the old population
-        elites = sorted(population, key=lambda agent: evaluate_network(
-            agent), reverse=True)[:con.num_elites]
+        elites = sorted(population, key=lambda agent: fitness_scores[population.index(
+            agent)], reverse=True)[:con.num_elites]
         # Replace the worst individuals from the new population with the elites
         offspring[-con.num_elites:] = elites
     return offspring
@@ -141,12 +146,11 @@ def train():
 
     # Main GA loop
     for generation in range(con.num_generations):
-        random_seed = random.randint(0, 10000)
 
         start_time = time.time()
         # Evaluate fitness of individuals
-        fitness_scores, best_score, best_agent = evaluate_fitness(
-            population, generation, random_seed)
+        fitness_scores, best_score, best_agent, best_agent_seed = evaluate_fitness(
+            population, generation)
 
         # Select parents
         parents = select_parents(population, fitness_scores)
@@ -154,36 +158,28 @@ def train():
         # Create offspring through crossover and mutation
         offspring = crossover_and_mutate(parents)
 
-        # Apply elitism (optional)
-        # offspring = apply_elitism(offspring, population)
+        # Apply elitism
+        offspring = apply_elitism(offspring, population, fitness_scores)
 
         # Replace the old population with the new population
         population = offspring
 
         print('Generation', generation, 'complete...')
-        # Save best individual from this gen and print score
-        # best_individual = get_best_individual(population)
-        # best_score = evaluate_network(best_individual)
-        # torch.save(best_individual.state_dict(), './models/' + str(generation) + '.pt')
-
         print('highest score for generation ' + str(generation) + ': ' +
               str(best_score) + ", time: " + str(time.time() - start_time))
         # Save best agent:
 
         torch.save(best_agent.state_dict(), './models/' +
-                   str(generation) + "_" + str(random_seed) + '.pt')
+                   str(generation) + "_" + str(best_agent_seed) + '.pt')
 
         output.append((generation, best_score))
+
         generate_training_graph(output)
 
-        # Run best agent from generation
-
-        # render every 10th generation
-        if generation % 10 == 0:
-            loop_game(best_agent, generation, virtual=False,
-                      random_seed=random_seed)
-
-        # loop_game(best_agent, generation, random_seed=random_seed)
+        # render every x generation
+        if generation % con.preview_mod == 0 and con.preview_active:
+            loop_game(best_agent, generation, individual_index=None, virtual=False,
+                      random_seed=best_agent_seed)
 
     # Termination condition reached
     best_individual = get_best_individual(population)

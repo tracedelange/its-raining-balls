@@ -7,6 +7,7 @@ import pdb
 import numpy as np
 from brain import Brain
 from config import Config
+from config import Config
 
 
 con = Config()
@@ -14,16 +15,18 @@ con = Config()
 
 def get_input_array(balls, player):
     N = con.INPUT_NODE_SIZE
-    DIM = 800
+    DIM = con.WIDTH
 
     input_array = np.zeros(N + 2)
     for ball in balls:
-        try:
+        if len(ball) == 2:
             x, y = ball
-            index = min(int(x // (DIM / N)), N-1)
-            input_array[index] = max(input_array[index], y) / DIM
-        except IndexError:
-            print('Index error', ball)
+            start_index = int(x // (DIM / N))
+            end_index = int((x) // (DIM / N))
+            for index in range(start_index, end_index + 1):
+                input_array[index] = max(input_array[index], y) / DIM
+        else:
+            print('Invalid ball format:', ball)
 
     input_array[N] = player.right / DIM
     input_array[N + 1] = player.left / DIM
@@ -31,9 +34,27 @@ def get_input_array(balls, player):
     return input_array
 
 
+def _draw_input_array(ia, screen):
+
+    # Divide the screen into columns of n = con.INPUT_NODE_SIZE, with lines in between
+    for i in range(con.INPUT_NODE_SIZE):
+        pygame.draw.line(screen, (0, 0, 0, 0.5), (i * con.WIDTH // con.INPUT_NODE_SIZE,
+                                                  0), (i * con.WIDTH // con.INPUT_NODE_SIZE, con.HEIGHT), 1)
+
+        # Also render text of the value of the IA at that index
+        font = pygame.font.Font(None, 20)
+        text = font.render(str(round(ia[i], 2)), True, (0, 0, 0))
+        text_rect = text.get_rect()
+        text_rect.topleft = (i * con.WIDTH // con.INPUT_NODE_SIZE, 40)
+        screen.blit(text, text_rect)
+
+
 # random.seed(0)
 
 def loop_game(model=None, generation=None, individual_index=None, virtual=False, random_seed=0):
+
+    if not virtual:
+        print(random_seed)
 
     # Initialize Pygame
     if not virtual:
@@ -50,11 +71,12 @@ def loop_game(model=None, generation=None, individual_index=None, virtual=False,
                          con.HEIGHT - con.PLAYER_SIZE, con.PLAYER_SIZE, con.PLAYER_SIZE)
 
     # Ball list
-    # Start with one ball in the middle of the screen
-    balls = [(pygame.Rect(con.WIDTH // 2 - con.BALL_SIZE //
-              2, 0, con.BALL_SIZE, con.BALL_SIZE), (0, 0, 0))]
-
-    # balls = []
+    if con.INITIAL_MIDDLE_BALL:
+        # Start with one ball in the middle of the screen
+        balls = [(pygame.Rect(con.WIDTH // 2 - con.BALL_SIZE //
+                              2, 0, con.BALL_SIZE, con.BALL_SIZE), (0, 0, 0))]
+    else:
+        balls = []
 
     # Clock
     clock = pygame.time.Clock()
@@ -89,6 +111,10 @@ def loop_game(model=None, generation=None, individual_index=None, virtual=False,
             ia = get_input_array([(ball[0].x, ball[0].y)
                                  for ball in balls], player)
 
+            # Draw input array as columns on the screen
+            if not virtual and con.VISUAL_FIELD_ACTIVE:
+                _draw_input_array(ia, screen)
+
             input_tensor = torch.tensor(ia, dtype=torch.float32)
 
             # Pass the input tensor through the model
@@ -102,7 +128,7 @@ def loop_game(model=None, generation=None, individual_index=None, virtual=False,
                 player.left += con.PLAYER_SPEED
 
         # Generate balls with random colors
-        if random.randint(1, 100) < 5:
+        if random.randint(1, 100) < con.BALL_SPAWN_RATE * 100:
             color = (random.randint(0, 255), random.randint(
                 0, 255), random.randint(0, 255))
             ball = pygame.Rect(random.randint(
@@ -127,6 +153,12 @@ def loop_game(model=None, generation=None, individual_index=None, virtual=False,
         # Draw player and balls
         if not virtual:
             pygame.draw.rect(screen, con.BLACK, player)
+
+        if not virtual and con.VISUAL_FIELD_ACTIVE:
+            # Get input array
+            ia = get_input_array([(ball[0].x, ball[0].y)
+                                 for ball in balls], player)
+            _draw_input_array(ia, screen)
 
         # Draw balls with random colors
         if not virtual:
@@ -158,36 +190,25 @@ def loop_game(model=None, generation=None, individual_index=None, virtual=False,
 
         # Update the display
         if not virtual:
-            graph = pygame.image.load('./training_graph.png')
-            width = graph.get_rect().width
-            height = graph.get_rect().height
-            graph = pygame.transform.scale(
-                graph, (int(width * 0.5), int(height * 0.5)))
-            # Make the image 90% transparent
-            graph.set_alpha(99)
-            # Draw graph in top right corner
-            screen.blit(graph, (con.WIDTH - width * 0.5, 0))
+            if con.GRAPH_ACTIVE:
+                graph = pygame.image.load('./figures/training_graph.png')
+                width = graph.get_rect().width
+                height = graph.get_rect().height
+                graph = pygame.transform.scale(
+                    graph, (int(width * 0.6), int(height * 0.6)))
+                # Make the image 90% transparent
+                graph.set_alpha(0)
+                # Draw graph in top right corner
+                screen.blit(graph, (con.WIDTH - width * 0.5, 0))
             pygame.display.update()
             pygame.display.flip()
 
-        # # Increase score
-        # score += 1
-
-        # Increase score if player is alive and not on the left or ride side of the screen
-        # if player.left > 0 and player.right < con.WIDTH:
-        #     score += 1
-
-        # Increase the score if the player is alive and not on the left or right side of the screen, provide a bonus if the player is close to the center of the screen
-        # if player.left > 0 and player.right < con.WIDTH:
-        #     score += 1
-        #     # if player.left > con.WIDTH // 4 and player.right < 3 * con.WIDTH // 4:
-        #     #     score += 1
-
-        # Increase score if player is not on left or right edge and is moving
-        if player.left > 0 and player.right < con.WIDTH:
+        if con.WALL_HUG_PENALTY:
+            # Increase score if player is not on left or right edge and is moving
+            if player.left > 0 and player.right < con.WIDTH:
+                score += 1
+        else:
             score += 1
-
-        BALL_SPEED += score * con.BALL_SPEED_SCALE
 
         # Cap the frame rate
         if not virtual:
